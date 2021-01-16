@@ -16,7 +16,7 @@ struct MallocMetadata{
 };
 
 void* smalloc(size_t size){
-    if( size==0 || size> (1e8)){
+    if( size==0 || size> (pow(10,8))){
         return NULL;
     }
     MallocMetadata* pos=first;
@@ -49,5 +49,24 @@ void* smalloc(size_t size){
     return (new_block+1);
 }
 
+void* scalloc(size_t num, size_t size){
+    void * ret_block = smalloc(size*num);
+    if(ret_block == NULL) return NULL;
+    memset(ret_block, 0, size);
+    return ret_block;
+}
 
+void sfree(void* p){
+    if(p!=NULL){
+        MallocMetadata* pos=p;
+        pos=pos-1;
+        if(!pos->is_free){
+            pos->is_free= false;
+            pos->used_bytes=0;
+        }
+    }
+}
 
+void* srealloc(void* oldp, size_t size){
+
+}
