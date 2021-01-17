@@ -76,11 +76,13 @@ void* srealloc(void* oldp, size_t size){
     if( size==0 || size> (pow(10,8))){
         return nullptr;
     }
-    MallocMetadata* pos=(MallocMetadata *)oldp;
-    pos=pos-1;
-    if (pos->size<=size){
-        pos->used_bytes=size; //not sure
-        return oldp;
+    if(oldp!= nullptr) {
+        MallocMetadata* pos=(MallocMetadata *)oldp;
+        pos = pos - 1;
+        if (pos->size >= size) {
+            pos->used_bytes = size; //not sure
+            return oldp;
+        }
     }
     void* newp= smalloc(size);
     if(newp==nullptr){
