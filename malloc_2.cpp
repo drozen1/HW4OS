@@ -1,8 +1,11 @@
 //
 // Created by student on 1/16/21.
 //
-#include <unistd.h>
+#include <cstring>
+#include <cmath>
 #include "stddef.h"
+#include <iostream>
+#include <unistd.h>
 
 
 void* first = NULL;
@@ -19,7 +22,7 @@ void* smalloc(size_t size){
     if( size==0 || size> (pow(10,8))){
         return NULL;
     }
-    MallocMetadata* pos=first;
+    MallocMetadata* pos=(MallocMetadata *)first;
     MallocMetadata* last=NULL;
     while(pos!=NULL){
         if(pos->is_free && pos->size>=size){
@@ -58,15 +61,97 @@ void* scalloc(size_t num, size_t size){
 
 void sfree(void* p){
     if(p!=NULL){
-        MallocMetadata* pos=p;
+        MallocMetadata* pos=(MallocMetadata *)p;
         pos=pos-1;
         if(!pos->is_free){
             pos->is_free= false;
             pos->used_bytes=0;
+            pos->size=0;
         }
     }
 }
 
 void* srealloc(void* oldp, size_t size){
+    if( size==0 || size> (pow(10,8))){
+        return nullptr;
+    }
+    MallocMetadata* pos=(MallocMetadata *)oldp;
+    pos=pos-1;
+    if (pos->size<=size){
+        pos->used_bytes=size; //not sure
+        return oldp;
+    }
+    void* newp= smalloc(size);
+    if(newp==nullptr){
+        return nullptr;
+    }
+    if(oldp!=nullptr) {
+        memmove(newp, oldp, size);
+        sfree(oldp);
+    }
+    return newp;
+}
 
+size_t _num_free_blocks(){
+    if( first== nullptr){
+        return 0;
+    }
+    MallocMetadata* pos= (MallocMetadata *)first;
+    size_t counter=0;
+    while(pos!= nullptr){
+        if(pos->is_free){
+            counter++;
+        }
+        pos=pos->next;
+    }
+    return counter;
+}
+
+size_t _num_free_bytes(){
+    if( first== nullptr){
+        return 0;
+    }
+    MallocMetadata* pos= (MallocMetadata *)first;
+    size_t counter=0;
+    while(pos!= nullptr){
+        if(pos->is_free){
+            counter+= pos->size; ///maybe not used size of not free?
+        }
+        pos=pos->next;
+    }
+    return counter;
+}
+
+size_t _num_allocated_blocks(){
+    if( first== nullptr){
+        return 0;
+    }
+    MallocMetadata* pos= (MallocMetadata *)first;
+    size_t counter=0;
+    while(pos!= nullptr){
+        counter+=1;
+        pos=pos->next;
+    }
+    return counter;
+}
+
+size_t _num_allocated_bytes(){
+    if( first== nullptr){
+        return 0;
+    }
+    MallocMetadata* pos= (MallocMetadata *)first;
+    size_t counter=0;
+    while(pos!= nullptr){
+        counter+=pos->size;
+        pos=pos->next;
+    }
+    return counter;
+}
+size_t _num_meta_data_bytes(){
+    return _num_allocated_blocks()*sizeof(MallocMetadata);
+}
+
+
+size_t _size_meta_data(){
+    return sizeof (MallocMetadata);
 }
