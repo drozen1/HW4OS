@@ -53,20 +53,21 @@ void* smalloc(size_t size){
 }
 
 void* scalloc(size_t num, size_t size){
+    if( size==0 || size> (pow(10,8))){
+        return NULL;
+    }
     void * ret_block = smalloc(size*num);
     if(ret_block == NULL) return NULL;
-    memset(ret_block, 0, size);
-    return ret_block;
+    return memset(ret_block, 0, size*num);
+
 }
 
 void sfree(void* p){
     if(p!=NULL){
-        MallocMetadata* pos=(MallocMetadata *)p;
-        pos=pos-1;
+        MallocMetadata* pos = ((MallocMetadata*)((unsigned long)p - sizeof(MallocMetadata)));
         if(!pos->is_free){
-            pos->is_free= false;
+            pos->is_free= true;
             pos->used_bytes=0;
-            pos->size=0;
         }
     }
 }
