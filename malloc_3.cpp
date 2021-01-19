@@ -24,7 +24,7 @@ void* smalloc(size_t size){
         return NULL;
     }
     if(size>128 * 1024){
-        mmap_hanler(size); #TODO
+        mmap_hanler(size); //TODO
     }
     MallocMetadata* pos=(MallocMetadata *)first;
     MallocMetadata* last=NULL;
@@ -32,7 +32,7 @@ void* smalloc(size_t size){
         if(pos->is_free && pos->size>=size){
             if(pos->size-size-size(MallocMetadata)>=128) {
                 pos->is_free = false;
-                cutblock(pos, size); #TODO
+                cutblock(pos, size); //TODO
                 return (pos + 1);
             }
             else{
@@ -43,26 +43,29 @@ void* smalloc(size_t size){
         last=pos;
         pos=pos->next;
     }
-    size_t sbrk_size=size;
-    if(last->is_free){ //TODO:countionue from this ponit
-        sbrk_size-=(last->size+sizeof(MallocMetadata));
+    if(last!= nullptr && last->is_free){
+        wildernessChunkIsFree(last,size); //TODO:
+//        sbrk_size-=(last->size+sizeof(MallocMetadata));
     }
-    void* ret= sbrk(sbrk_size+sizeof(MallocMetadata));
-    if (ret== (void*)-1){
-        return NULL;
-    }
-    MallocMetadata* new_block= (MallocMetadata*)ret;
-    new_block->size=size;
-    new_block->is_free=false;
-    new_block->next=NULL;
-    if(first==NULL){
-        new_block->prev=NULL;
-        first=(void*)new_block;
+    else {
+        void *ret = sbrk(size + sizeof(MallocMetadata));
+        if (ret == (void *) -1) {
+            return NULL;
+        }
+        MallocMetadata* new_block= (MallocMetadata*)ret;
+        new_block->size=size;
+        new_block->is_free=false;
+        new_block->next=NULL;
+        if(first==NULL){
+            new_block->prev=NULL;
+            first=(void*)new_block;
+            return (new_block+1);
+        }
+        last->next = new_block;
+        new_block->prev=last;
         return (new_block+1);
     }
-    last->next=new_block;
-    new_block->prev=last;
-    return (new_block+1);
+
 }
 
 void* scalloc(size_t num, size_t size){
@@ -78,8 +81,30 @@ void* scalloc(size_t num, size_t size){
 void sfree(void* p){
     if(p!=NULL){
         MallocMetadata* pos = ((MallocMetadata*)((unsigned long)p - sizeof(MallocMetadata)));
-        if(!pos->is_free){
-            pos->is_free= true;
+        if(pos->is_mmap){
+            if(first_mmap==pos){ //check if first
+                first_mmap=pos->next;
+                if(pos->next!= nullptr){
+                    pos->next->prev= nullptr;
+                }
+            }else{ //not first for sure
+                pos->prev->next=pos->next;
+                if(pos->next!= nullptr){
+                    pos->next->prev=pos->prev;
+                }
+            }
+            munmap((void*)(pos), pos->size + META_DATA_SIZE);
+        }else{
+            if(!pos->is_free){
+                pos->is_free= true;
+            }
+            if(pos->prev!= nullptr){
+                pos=merge_cells(pos->prev,pos); //TODO: need to check if its free, return the meta date of the block
+            }
+            if(pos->next!= nullptr){
+                pos=merge_cells(pos,pos->next); //TODO:
+            }
+            assert(pos->is_free);
         }
     }
 }
@@ -91,17 +116,58 @@ void* srealloc(void* oldp, size_t size){
     if(oldp!= nullptr) {
         MallocMetadata* pos=(MallocMetadata *)oldp;
         pos = pos - 1;
-        if (pos->size >= size) {
-            return oldp;
+        if (pos->is_mmap) { ///mmap case:
+            if(pos->size==size){ //TODO: check Piazza case https://piazza.com/class/kg7wfbyqnoc73t?cid=344
+                return oldp;
+            }
+            void* ret= smalloc(size);
+            if(ret== nullptr){
+                return nullptr;
+            }
+            memmove(ret, oldp, size);
+            sfree(oldp);  // will use munmap
+            return ret;
+        }else{ ///case A
+            if(pos->size>=size){
+                if(pos->size-size-size(MallocMetadata)>=128) { //can split it to two
+                    cutblock(pos, size); //TODO
+                }
+                pos->is_free = false;
+                return (pos + 1);
+            }else{ ///case B
+                if(caseB(pos,size)!= nullptr)
+                void* ret=caseB(pos,size); //TODO
+                if(ret!= nullptr){
+                    return ret;
+                }else {//caseC
+                    void* ret=caseC(pos,size); //TODO
+                    if(ret!= nullptr) {
+                        return ret;
+                    }else{ //caseD
+                        void* ret=caseD(pos,size); //TODO
+                        if(ret!= nullptr) {
+                            return ret;
+                        }
+                    }
+                }
+            }
+        }
+        ///Case E:
+        ((MallocMetadata*)((unsigned long)oldp - META_DATA_SIZE))->is_free = true;
+        ret = smalloc(size);
+        if(ret== nullptr){
+            return nullptr;
+        }
+        ((MallocMetadata*)((unsigned long)oldp - META_DATA_SIZE))->is_free = false;
+        memmove(ret, oldp, size);
+        if(ret!=oldp){
+            sfree(oldp);
         }
     }
+    ///oldp is NULL case
     void* newp= smalloc(size);
     if(newp==nullptr){
         return nullptr;
-    }
-    if(oldp!=nullptr) {
-        memmove(newp, oldp, size);
-        sfree(oldp);
     }
     return newp;
 }
