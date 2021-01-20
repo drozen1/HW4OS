@@ -6,6 +6,9 @@
 #include "stddef.h"
 #include <iostream>
 #include <unistd.h>
+#include <assert.h>
+#include <tgmath.h>
+#include <sys/mman.h>
 
 
 void* first_sbrk = NULL;
@@ -19,10 +22,23 @@ struct MallocMetadata{
     MallocMetadata* prev;
 };
 
+MallocMetadata* merge_cells(MallocMetadata* last,MallocMetadata* next, bool is_pos_first){
+    assert(last != nullptr && next != nullptr);
+    if(last->is_free && next->is_free){
+        last->size = last->size +next->size;
+        last->next = next->next;
+        return last;
+    } else if(is_pos_first){
+        return last;
+    } else{
+        return next;
+    }
+}
+
 void cutblock(void* pos,size_t size){
-    size_t left_size = ((MallocMetadata*)pos)->size - size-size(MallocMetadata);
+    size_t left_size = ((MallocMetadata*)pos)->size - size-sizeof(MallocMetadata);
     ((MallocMetadata*)pos)->size= size;
-    MallocMetadata* new_block = (MallocMetadata*)(pos+size(MallocMetadata)+size);
+    MallocMetadata* new_block = (MallocMetadata*)(pos+sizeof(MallocMetadata)+size);
     new_block->size = left_size;
     new_block->is_free = false;
     new_block->is_mmap = false;
@@ -42,8 +58,8 @@ MallocMetadata* wildernessChunkIsFree(MallocMetadata* last,size_t size){
     return last;
 }
 
-void mmap_hanler(size_t size){
-    ret_ptr = mmap(NULL, size + META_DATA_SIZE, PROT_READ | PROT_WRITE,
+void* mmap_hanler(size_t size){
+    void* ret_ptr = mmap(NULL, size + sizeof(MallocMetadata), PROT_READ | PROT_WRITE,
                    MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
     if (ret_ptr == (void*)(-1)) {
         return nullptr;
@@ -55,20 +71,21 @@ void mmap_hanler(size_t size){
     pos->next= nullptr;
     pos->is_mmap= true;
     if(first_mmap== nullptr){
-        first_mmap=ret_ptr //void* of pos
+        first_mmap=ret_ptr; //void* of pos
     }else{
         MallocMetadata* firstMMap=(MallocMetadata *)first_mmap;
         pos->next=firstMMap;
         firstMMap->prev=pos;
-        first_mmap=ret_ptr
+        first_mmap=ret_ptr;
     }
+    return first_mmap;
 }
 
 void* caseB(MallocMetadata* pos,size_t size){
-    if(pos->prev!= nullptr&& pos->prev->is_free && (pos->prev->size+pos->size+sizeof(MallocMetadata)>= size){
+    if(pos->prev!= nullptr&& pos->prev->is_free && (pos->prev->size+pos->size+sizeof(MallocMetadata)>= size)){
         pos=merge_cells(pos->prev,pos,false);
         ///merged! check if we can cut
-        if(pos->size-size-size(MallocMetadata)>=128){
+        if(pos->size-size-sizeof(MallocMetadata)>=128){
             cutblock(pos, size);
         }
         return pos+1;
@@ -76,10 +93,10 @@ void* caseB(MallocMetadata* pos,size_t size){
     return nullptr;
 }
 void* caseC(MallocMetadata* pos,size_t size){
-    if(pos->next!= nullptr&& pos->next->is_free && (pos->next->size+pos->size+sizeof(MallocMetadata)>= size){
+    if(pos->next!= nullptr&& pos->next->is_free && (pos->next->size+pos->size+sizeof(MallocMetadata)>= size)){
         pos=merge_cells(pos,pos->next,true);
         ///merged! check if we can cut
-        if(pos->size-size-size(MallocMetadata)>=128){
+        if(pos->size-size-sizeof(MallocMetadata)>=128){
             cutblock(pos, size);
         }
         return pos+1;
@@ -93,7 +110,7 @@ void* caseD(MallocMetadata* pos,size_t size){
         pos=merge_cells(pos->prev,pos,false);
         pos=merge_cells(pos,pos->next,true);
         ///merged! check if we can cut
-        if(pos->size-size-size(MallocMetadata)>=128){
+        if(pos->size-size-sizeof(MallocMetadata)>=128){
             cutblock(pos, size);
         }
         return pos+1;
@@ -107,16 +124,19 @@ void* smalloc(size_t size){
         return NULL;
     }
     if(size>128 * 1024){
-        mmap_hanler(size);
-        return first_mmap;
+        void* ret= mmap_hanler(size);
+        if(ret== nullptr){
+            return nullptr;
+        }
+        return ret;
     }
-    MallocMetadata* pos=(MallocMetadata *)first;
+    MallocMetadata* pos=(MallocMetadata *)first_sbrk;
     MallocMetadata* last=NULL;
     while(pos!=NULL){
         if(pos->is_free && pos->size>=size){
-            if(pos->size-size-size(MallocMetadata)>=128) {
+            if(pos->size-size-sizeof(MallocMetadata)>=128) {
                 pos->is_free = false;
-                cutblock(pos, size); //TODO
+                cutblock(pos, size);
                 return (pos + 1);
             }
             else{
@@ -128,7 +148,7 @@ void* smalloc(size_t size){
         pos=pos->next;
     }
     if(last!= nullptr && last->is_free){
-        return 1+wildernessChunkIsFree(last,size); //TODO:
+        return 1+wildernessChunkIsFree(last,size);
 //        sbrk_size-=(last->size+sizeof(MallocMetadata));
     }
     else {
@@ -140,9 +160,9 @@ void* smalloc(size_t size){
         new_block->size=size;
         new_block->is_free=false;
         new_block->next=NULL;
-        if(first==NULL){
+        if(first_sbrk==NULL){
             new_block->prev=NULL;
-            first=(void*)new_block;
+            first_sbrk=(void*)new_block;
             return (new_block+1);
         }
         last->next = new_block;
@@ -162,18 +182,7 @@ void* scalloc(size_t num, size_t size){
 
 }
 
-MallocMetadata* merge_cells(MallocMetadata* last,MallocMetadata* next, bool is_pos_first){
-    assert(last != nullptr && next != nullptr);
-    if(last->is_free && next->is_free){
-        last->size = last->size +next->size;
-        last->next = next->next;
-        return last;
-    } else if(is_pos_first){
-        return last;
-    } else{
-        return next;
-    }
-}
+
 
 void sfree(void* p){
     if(p!=NULL){
@@ -190,16 +199,16 @@ void sfree(void* p){
                     pos->next->prev=pos->prev;
                 }
             }
-            munmap((void*)(pos), pos->size + META_DATA_SIZE);
+            munmap((void*)(pos), pos->size + sizeof (MallocMetadata));
         }else{
             if(!pos->is_free){
                 pos->is_free= true;
             }
             if(pos->prev!= nullptr){
-                pos=merge_cells(pos->prev,pos, false); //TODO: need to check if its free, return the meta date of the block
+                pos=merge_cells(pos->prev,pos, false);
             }
             if(pos->next!= nullptr){
-                pos=merge_cells(pos,pos->next, true); //TODO:
+                pos=merge_cells(pos,pos->next, true);
             }
             assert(pos->is_free);
         }
@@ -226,21 +235,21 @@ void* srealloc(void* oldp, size_t size){
             return ret;
         }else{ ///case A
             if(pos->size>=size){
-                if(pos->size-size-size(MallocMetadata)>=128) { //can split it to two
-                    cutblock(pos, size); //TODO
+                if(pos->size-size-sizeof(MallocMetadata)>=128) { //can split it to two
+                    cutblock(pos, size);
                 }
                 pos->is_free = false;
                 return (pos + 1);
             }else{ ///case B
-                void* ret=caseB(pos,size); //TODO
+                void* ret=caseB(pos,size);
                 if(ret!= nullptr){
                     return ret;
                 }else {//caseC
-                    void* ret=caseC(pos,size); //TODO
+                    void* ret=caseC(pos,size);
                     if(ret!= nullptr) {
                         return ret;
                     }else{ //caseD
-                        void* ret=caseD(pos,size); //TODO
+                        void* ret=caseD(pos,size);
                         if(ret!= nullptr) {
                             return ret;
                         }
@@ -249,12 +258,12 @@ void* srealloc(void* oldp, size_t size){
             }
         }
         ///Case E:
-        ((MallocMetadata*)((unsigned long)oldp - META_DATA_SIZE))->is_free = true;
-        ret = smalloc(size);
+        ((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->is_free = true;
+        void* ret = smalloc(size);
         if(ret== nullptr){
             return nullptr;
         }
-        ((MallocMetadata*)((unsigned long)oldp - META_DATA_SIZE))->is_free = false;
+        ((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->is_free = false;
         memmove(ret, oldp, size);
         if(ret!=oldp){
             sfree(oldp);
@@ -269,10 +278,10 @@ void* srealloc(void* oldp, size_t size){
 }
 
 size_t _num_free_blocks(){
-    if( first== nullptr){
+    if( first_sbrk== nullptr){
         return 0;
     }
-    MallocMetadata* pos= (MallocMetadata *)first;
+    MallocMetadata* pos= (MallocMetadata *)first_sbrk;
     size_t counter=0;
     while(pos!= nullptr){
         if(pos->is_free){
@@ -284,10 +293,10 @@ size_t _num_free_blocks(){
 }
 
 size_t _num_free_bytes(){
-    if( first== nullptr){
+    if( first_sbrk== nullptr){
         return 0;
     }
-    MallocMetadata* pos= (MallocMetadata *)first;
+    MallocMetadata* pos= (MallocMetadata *)first_sbrk;
     size_t counter=0;
     while(pos!= nullptr){
         if(pos->is_free){
@@ -299,10 +308,10 @@ size_t _num_free_bytes(){
 }
 
 size_t _num_allocated_blocks(){
-    if( first== nullptr){
+    if( first_sbrk== nullptr){
         return 0;
     }
-    MallocMetadata* pos= (MallocMetadata *)first;
+    MallocMetadata* pos= (MallocMetadata *)first_sbrk;
     size_t counter=0;
     while(pos!= nullptr){
         counter+=1;
@@ -312,10 +321,10 @@ size_t _num_allocated_blocks(){
 }
 
 size_t _num_allocated_bytes(){
-    if( first== nullptr){
+    if( first_sbrk== nullptr){
         return 0;
     }
-    MallocMetadata* pos= (MallocMetadata *)first;
+    MallocMetadata* pos= (MallocMetadata *)first_sbrk;
     size_t counter=0;
     while(pos!= nullptr){
         counter+=pos->size;

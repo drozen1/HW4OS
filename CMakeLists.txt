@@ -3,4 +3,4 @@ project(HW4OS)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(HW4OS tamuz_tests_hw4_malloc2.cpp)
+add_executable(HW4OS malloc_3_tests.cpp )
