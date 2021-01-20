@@ -19,6 +19,19 @@ struct MallocMetadata{
     MallocMetadata* prev;
 };
 
+void cutblock(void* pos,size_t size){
+    size_t left_size = ((MallocMetadata*)pos)->size - size-size(MallocMetadata);
+    size_t new_size = ((MallocMetadata*)(old_ptr))->size - _size - (size_t)META_DATA_SIZE;
+    pos->size= size;
+    MallocMetadata* new_block = (MallocMetadata*)(pos+size(MallocMetadata)+size);
+    new_block->size = left_size;
+    new_block->is_free = false;
+    new_block->prev =pos+size(MallocMetadata);
+    new_block->next=pos->next;
+    pos->next = new_block;
+
+}
+
 void* smalloc(size_t size){
     if( size==0 || size> (pow(10,8))){
         return NULL;
@@ -78,6 +91,19 @@ void* scalloc(size_t num, size_t size){
 
 }
 
+MallocMetadata* merge_cells(MallocMetadata* last,MallocMetadata* next, bool is_pos_first){
+    assert(last != nullptr && next != nullptr);
+    if(last->is_free && next->is_free){
+        last->size = last->size +next->size;
+        last->next = next->next;
+        return last;
+    } else if(is_pos_first){
+        return last;
+    } else{
+        return next;
+    }
+}
+
 void sfree(void* p){
     if(p!=NULL){
         MallocMetadata* pos = ((MallocMetadata*)((unsigned long)p - sizeof(MallocMetadata)));
@@ -99,10 +125,10 @@ void sfree(void* p){
                 pos->is_free= true;
             }
             if(pos->prev!= nullptr){
-                pos=merge_cells(pos->prev,pos); //TODO: need to check if its free, return the meta date of the block
+                pos=merge_cells(pos->prev,pos, false); //TODO: need to check if its free, return the meta date of the block
             }
             if(pos->next!= nullptr){
-                pos=merge_cells(pos,pos->next); //TODO:
+                pos=merge_cells(pos,pos->next, true); //TODO:
             }
             assert(pos->is_free);
         }
