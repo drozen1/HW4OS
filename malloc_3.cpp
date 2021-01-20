@@ -21,15 +21,25 @@ struct MallocMetadata{
 
 void cutblock(void* pos,size_t size){
     size_t left_size = ((MallocMetadata*)pos)->size - size-size(MallocMetadata);
-    size_t new_size = ((MallocMetadata*)(old_ptr))->size - _size - (size_t)META_DATA_SIZE;
-    pos->size= size;
+    ((MallocMetadata*)pos)->size= size;
     MallocMetadata* new_block = (MallocMetadata*)(pos+size(MallocMetadata)+size);
     new_block->size = left_size;
     new_block->is_free = false;
-    new_block->prev =pos+size(MallocMetadata);
-    new_block->next=pos->next;
-    pos->next = new_block;
-
+    new_block->is_mmap = false;
+    new_block->prev =(MallocMetadata*)pos;
+    new_block->next= ((MallocMetadata*)pos)->next;
+    ((MallocMetadata*)pos)->next = new_block;
+}
+MallocMetadata* wildernessChunkIsFree(MallocMetadata* last,size_t size){
+    size_t sbrk_size = size- last->size;
+    void *ret = sbrk(sbrk_size);
+    if (ret == (void *) -1) {
+    return NULL;
+    }
+    last->is_free = false;
+    last->size = size;
+    assert(last->next == nullptr);
+    return last;
 }
 
 void* smalloc(size_t size){
@@ -57,7 +67,7 @@ void* smalloc(size_t size){
         pos=pos->next;
     }
     if(last!= nullptr && last->is_free){
-        wildernessChunkIsFree(last,size); //TODO:
+        return 1+wildernessChunkIsFree(last,size); //TODO:
 //        sbrk_size-=(last->size+sizeof(MallocMetadata));
     }
     else {
