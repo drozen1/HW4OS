@@ -42,12 +42,73 @@ MallocMetadata* wildernessChunkIsFree(MallocMetadata* last,size_t size){
     return last;
 }
 
+void mmap_hanler(size_t size){
+    ret_ptr = mmap(NULL, size + META_DATA_SIZE, PROT_READ | PROT_WRITE,
+                   MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    if (ret_ptr == (void*)(-1)) {
+        return nullptr;
+    }
+    MallocMetadata* pos=(MallocMetadata *)ret_ptr;
+    pos->is_free= true;
+    pos->size=size;
+    pos->prev= nullptr;
+    pos->next= nullptr;
+    pos->is_mmap= true;
+    if(first_mmap== nullptr){
+        first_mmap=ret_ptr //void* of pos
+    }else{
+        MallocMetadata* firstMMap=(MallocMetadata *)first_mmap;
+        pos->next=firstMMap;
+        firstMMap->prev=pos;
+        first_mmap=ret_ptr
+    }
+}
+
+void* caseB(MallocMetadata* pos,size_t size){
+    if(pos->prev!= nullptr&& pos->prev->is_free && (pos->prev->size+pos->size+sizeof(MallocMetadata)>= size){
+        pos=merge_cells(pos->prev,pos,false);
+        ///merged! check if we can cut
+        if(pos->size-size-size(MallocMetadata)>=128){
+            cutblock(pos, size);
+        }
+        return pos+1;
+    }
+    return nullptr;
+}
+void* caseC(MallocMetadata* pos,size_t size){
+    if(pos->next!= nullptr&& pos->next->is_free && (pos->next->size+pos->size+sizeof(MallocMetadata)>= size){
+        pos=merge_cells(pos,pos->next,true);
+        ///merged! check if we can cut
+        if(pos->size-size-size(MallocMetadata)>=128){
+            cutblock(pos, size);
+        }
+        return pos+1;
+    }
+    return nullptr;
+}
+
+void* caseD(MallocMetadata* pos,size_t size){
+    if(pos->next!= nullptr&& pos->next->is_free && pos->prev!= nullptr&& pos->prev->is_free&&
+            pos->next->size+pos->size+2*sizeof(MallocMetadata)+pos->prev->size>= size){
+        pos=merge_cells(pos->prev,pos,false);
+        pos=merge_cells(pos,pos->next,true);
+        ///merged! check if we can cut
+        if(pos->size-size-size(MallocMetadata)>=128){
+            cutblock(pos, size);
+        }
+        return pos+1;
+    }
+    return nullptr;
+}
+
+
 void* smalloc(size_t size){
     if( size==0 || size> (pow(10,8))){
         return NULL;
     }
     if(size>128 * 1024){
-        mmap_hanler(size); //TODO
+        mmap_hanler(size);
+        return first_mmap;
     }
     MallocMetadata* pos=(MallocMetadata *)first;
     MallocMetadata* last=NULL;
@@ -171,7 +232,6 @@ void* srealloc(void* oldp, size_t size){
                 pos->is_free = false;
                 return (pos + 1);
             }else{ ///case B
-                if(caseB(pos,size)!= nullptr)
                 void* ret=caseB(pos,size); //TODO
                 if(ret!= nullptr){
                     return ret;

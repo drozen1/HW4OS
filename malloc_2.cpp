@@ -11,7 +11,7 @@
 void* first = NULL;
 
 struct MallocMetadata{
-        size_t size;
+    size_t size;
     bool is_free;
     MallocMetadata* next;
     MallocMetadata* prev;
