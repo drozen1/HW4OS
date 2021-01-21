@@ -300,7 +300,7 @@ void srealloc_tests() {
     assert(_num_free_bytes() == freeBytesBefore);
     assert(p2 == temp);
 
-
+    sfree(p1);
     sfree(p2);
     sfree(p3);
 

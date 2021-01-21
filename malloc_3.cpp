@@ -92,11 +92,12 @@ void* caseB(MallocMetadata* pos,size_t size){
         pos=merge_cells(pos->prev,pos,false);
         pos->is_free= false;
         ///merged! check if we can cut
+        void* dest=(void*)(pos+1);
+        memmove(dest, src, old_size);
         if(pos->size-size>=128+sizeof(MallocMetadata)){
             cutblock(pos, size);
         }
-        void* dest=(void*)(pos+1);
-        memmove(dest, src, old_size);
+
         return dest;
     }
     return nullptr;
@@ -125,11 +126,12 @@ void* caseD(MallocMetadata* pos,size_t size){
         void* dest=(void*)(pos+1);
         pos=merge_cells(pos,pos->next,true);
         pos->is_free= false;
+        memmove(dest, src, old_size);
         ///merged! check if we can cut
         if(pos->size-size>=128+sizeof(MallocMetadata)){
             cutblock(pos, size);
         }
-        memmove(dest, src, old_size);
+
         return dest;
 //        return pos+1;
     }
@@ -284,8 +286,8 @@ void* srealloc(void* oldp, size_t size){
         }
         /////((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->is_free = false;
 
-        memmove(ret, oldp, copy_size);
         if(ret!=oldp){
+            memmove(ret, oldp, copy_size);
             sfree(oldp);
         }
         return ret;
