@@ -262,11 +262,11 @@ void* srealloc(void* oldp, size_t size){
                 void* ret=caseB(pos,size);
                 if(ret!= nullptr){
                     return ret;
-                }else {//caseC
+                }else {///caseC
                     void* ret=caseC(pos,size);
                     if(ret!= nullptr) {
                         return ret;
-                    }else{ //caseD
+                    }else{ ///caseD
                         void* ret=caseD(pos,size);
                         if(ret!= nullptr) {
                             return ret;
@@ -276,16 +276,19 @@ void* srealloc(void* oldp, size_t size){
             }
         }
         ///Case E:
+        size_t copy_size= ((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->size;
         ((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->is_free = true;
         void* ret = smalloc(size);
         if(ret== nullptr){
             return nullptr;
         }
-        ((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->is_free = false;
-        memmove(ret, oldp, size);
+        /////((MallocMetadata*)((unsigned long)oldp - sizeof(MallocMetadata)))->is_free = false;
+
+        memmove(ret, oldp, copy_size);
         if(ret!=oldp){
             sfree(oldp);
         }
+        return ret;
     }
     ///oldp is NULL case
     void* newp= smalloc(size);
