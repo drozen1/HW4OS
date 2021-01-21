@@ -68,7 +68,7 @@ void* mmap_hanler(size_t size){
         return nullptr;
     }
     MallocMetadata* pos=(MallocMetadata *)ret_ptr;
-    pos->is_free= true;
+    pos->is_free= false;
     pos->size=size;
     pos->prev= nullptr;
     pos->next= nullptr;
@@ -81,7 +81,7 @@ void* mmap_hanler(size_t size){
         firstMMap->prev=pos;
         first_mmap=ret_ptr;
     }
-    return first_mmap;
+    return first_mmap+sizeof (MallocMetadata);
 }
 
 void* caseB(MallocMetadata* pos,size_t size){
