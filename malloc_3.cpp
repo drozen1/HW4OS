@@ -40,7 +40,7 @@ void cutblock(void* pos,size_t size){
     ((MallocMetadata*)pos)->size= size;
     MallocMetadata* new_block = (MallocMetadata*)(pos+sizeof(MallocMetadata)+size);
     new_block->size = left_size;
-    new_block->is_free = false;
+    new_block->is_free = true;
     new_block->is_mmap = false;
     new_block->prev =(MallocMetadata*)pos;
     new_block->next= ((MallocMetadata*)pos)->next;
@@ -308,27 +308,40 @@ size_t _num_free_bytes(){
 }
 
 size_t _num_allocated_blocks(){
-    if( first_sbrk== nullptr){
-        return 0;
+    size_t counter=0;
+    if( first_sbrk== nullptr && first_mmap== nullptr){
+        return counter;
     }
     MallocMetadata* pos= (MallocMetadata *)first_sbrk;
-    size_t counter=0;
     while(pos!= nullptr){
         counter+=1;
         pos=pos->next;
+    }
+    if( first_mmap== nullptr){
+        return counter;
+    }
+    MallocMetadata* posMMap= (MallocMetadata *)first_mmap;
+    while(posMMap!= nullptr){
+        counter+=1;
+        posMMap=posMMap->next;
     }
     return counter;
 }
 
 size_t _num_allocated_bytes(){
-    if( first_sbrk== nullptr){
-        return 0;
+    size_t counter=0;
+    if( first_sbrk== nullptr && first_mmap== nullptr){
+        return counter;
     }
     MallocMetadata* pos= (MallocMetadata *)first_sbrk;
-    size_t counter=0;
     while(pos!= nullptr){
         counter+=pos->size;
         pos=pos->next;
+    }
+    MallocMetadata* posMMap= (MallocMetadata *)first_mmap;
+    while(posMMap!= nullptr){
+        counter+=posMMap->size;
+        posMMap=posMMap->next;
     }
     return counter;
 }
