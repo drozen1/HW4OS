@@ -41,7 +41,7 @@ MallocMetadata* merge_cells(MallocMetadata* last,MallocMetadata* next, bool is_p
 void cutblock(void* pos,size_t size){
     size_t left_size = ((MallocMetadata*)pos)->size - size-sizeof(MallocMetadata);
     ((MallocMetadata*)pos)->size= size;
-    MallocMetadata* new_block = (MallocMetadata*)(pos+sizeof(MallocMetadata)+size);
+    MallocMetadata* new_block = (MallocMetadata*)((unsigned long)pos +sizeof(MallocMetadata)+size);
     new_block->size = left_size;
     new_block->is_free = true;
     new_block->is_mmap = false;
@@ -81,7 +81,7 @@ void* mmap_hanler(size_t size){
         firstMMap->prev=pos;
         first_mmap=ret_ptr;
     }
-    return (void*)(first_mmap + sizeof (MallocMetadata));
+    return (void*)( (unsigned long )first_mmap + sizeof (MallocMetadata));
 }
 
 void* caseB(MallocMetadata* pos,size_t size){
@@ -367,6 +367,7 @@ size_t _num_allocated_bytes(){
         posMMap=posMMap->next;
     }
     return counter;
+
 }
 size_t _num_meta_data_bytes(){
     return _num_allocated_blocks()*sizeof(MallocMetadata);

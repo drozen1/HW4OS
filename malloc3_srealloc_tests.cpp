@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <iostream>
-
+#include "malloc_3.cpp"
 //include your header file here
 //compile with g++ -g malloc3_srealloc_tests.cpp malloc_3.cpp -o sreallocTest
 //then run
@@ -92,11 +92,11 @@ void malloc3_realloc_note_e_test(){
     sfree(third);
     sfree(fourth);
     srealloc(second,600);
-    
-    assert(_num_allocated_bytes()  == (1114));
-    assert(_num_free_blocks() == 1);
-    assert(_num_allocated_blocks() == 2);
-    
+
+    assert(_num_allocated_bytes()  == (1082));
+    assert(_num_free_blocks() == 2);
+    assert(_num_allocated_blocks() == 3);
+
 }
 
 void malloc3_realloc_note_d2_test(){
@@ -141,13 +141,13 @@ void malloc3_realloc_note_f_test(){
 int main(){
 
 	//RUN ONLY ONE TEST AT A TIME!!!!!!!! ^_^ 
-    malloc3_realloc_note_a_test();
+    //malloc3_realloc_note_a_test();
     //malloc3_realloc_note_b_test();
     //malloc3_realloc_note_c_test();
     //malloc3_realloc_note_d_test();
 	//malloc3_realloc_note_d2_test();
     //malloc3_realloc_note_e_test();
-    //malloc3_realloc_note_f_test();
+    malloc3_realloc_note_f_test();
 
     return 0;
 }
