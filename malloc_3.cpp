@@ -25,8 +25,11 @@ struct MallocMetadata{
 MallocMetadata* merge_cells(MallocMetadata* last,MallocMetadata* next, bool is_pos_first){
     assert(last != nullptr && next != nullptr);
     if(last->is_free && next->is_free){
-        last->size = last->size +next->size;
+        last->size = last->size +next->size+sizeof (MallocMetadata);
         last->next = next->next;
+        if(next->next!= nullptr){
+            next->next->prev=last;
+        }
         return last;
     } else if(is_pos_first){
         return last;
