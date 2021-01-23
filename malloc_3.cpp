@@ -48,6 +48,9 @@ void cutblock(void* pos,size_t size){
     new_block->prev =(MallocMetadata*)pos;
     new_block->next= ((MallocMetadata*)pos)->next;
     ((MallocMetadata*)pos)->next = new_block;
+    if(new_block->next!= nullptr){
+        new_block->next->prev=new_block;
+    }
 }
 MallocMetadata* wildernessChunkIsFree(MallocMetadata* last,size_t size){
     size_t sbrk_size = size- last->size;
